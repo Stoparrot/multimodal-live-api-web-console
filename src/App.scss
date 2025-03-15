@@ -169,3 +169,52 @@ body {
   border-radius: 32px;
   max-height: fit-content;
 }
+
+/* Add responsive styles for mobile devices */
+@media screen and (max-width: 768px) {
+  body {
+    overscroll-behavior: none; /* Prevents pull-to-refresh on mobile browsers */
+  }
+  
+  .app {
+    /* Mobile-specific app layout adjustments */
+    padding: 0 8px;
+  }
+  
+  .control-tray {
+    /* Make the control tray adapt to smaller screens */
+    width: 100%;
+    max-width: 100%;
+    padding-bottom: 10px;
+    
+    .actions-nav {
+      /* Adjust the control buttons for mobile */
+      padding: 8px;
+      gap: 8px;
+      
+      .action-button {
+        /* Slightly smaller buttons on mobile */
+        width: 42px;
+        height: 42px;
+      }
+    }
+    
+    .status-messages {
+      /* Adjust message display for smaller screens */
+      bottom: 90%;
+      
+      .status-message {
+        font-size: 10px;
+        max-width: 250px;
+      }
+    }
+  }
+}
+
+/* Fix for iOS Safari height issues */
+@supports (-webkit-touch-callout: none) {
+  .app {
+    /* Fill the viewport on iOS Safari */
+    height: -webkit-fill-available;
+  }
+}

@@ -52,29 +52,64 @@ export function useLiveAPI({
 
   // register audio for streaming server -> speakers
   useEffect(() => {
-    if (!audioStreamerRef.current) {
-      audioContext({ id: "audio-out" }).then((audioCtx: AudioContext) => {
+    const initAudioStreamer = async () => {
+      try {
+        console.log("Initializing audio output context...");
+        const audioCtx = await audioContext({ id: "audio-out" });
+        
+        console.log("Creating AudioStreamer...");
         audioStreamerRef.current = new AudioStreamer(audioCtx);
-        audioStreamerRef.current
-          .addWorklet<any>("vumeter-out", VolMeterWorket, (ev: any) => {
+        
+        // Ensure context is resumed
+        if (audioCtx.state !== "running") {
+          console.log("Resuming audio output context from state:", audioCtx.state);
+          await audioCtx.resume();
+          console.log("Audio output context now in state:", audioCtx.state);
+        }
+        
+        console.log("Adding volume meter worklet to output stream...");
+        await audioStreamerRef.current.addWorklet<any>(
+          "vumeter-out", 
+          VolMeterWorket, 
+          (ev: any) => {
             setVolume(ev.data.volume);
-          })
-          .then(() => {
-            // Successfully added worklet
-          });
-      });
+          }
+        );
+        console.log("Audio output system initialized successfully");
+      } catch (error) {
+        console.error("Failed to initialize audio output system:", error);
+      }
+    };
+    
+    if (!audioStreamerRef.current) {
+      initAudioStreamer();
     }
-  }, [audioStreamerRef]);
+  }, []);
 
   useEffect(() => {
     const onClose = () => {
       setConnected(false);
     };
 
-    const stopAudioStreamer = () => audioStreamerRef.current?.stop();
+    const stopAudioStreamer = () => {
+      console.log("Stopping audio streamer due to interruption");
+      audioStreamerRef.current?.stop();
+    };
 
-    const onAudio = (data: ArrayBuffer) =>
-      audioStreamerRef.current?.addPCM16(new Uint8Array(data));
+    const onAudio = (data: ArrayBuffer) => {
+      if (!audioStreamerRef.current) {
+        console.warn("Received audio data but AudioStreamer not initialized");
+        return;
+      }
+      
+      // Ensure audio is resumed before playing
+      if (audioStreamerRef.current.context.state !== "running") {
+        console.log("Resuming audio context before playback");
+        audioStreamerRef.current.resume();
+      }
+      
+      audioStreamerRef.current.addPCM16(new Uint8Array(data));
+    };
 
     client
       .on("close", onClose)
@@ -90,10 +125,19 @@ export function useLiveAPI({
   }, [client]);
 
   const connect = useCallback(async () => {
-    console.log(config);
+    console.log("Connecting with config:", config);
     if (!config) {
       throw new Error("config has not been set");
     }
+    
+    // Make sure audio streamer is ready
+    if (audioStreamerRef.current) {
+      console.log("Resuming audio streamer for new connection");
+      await audioStreamerRef.current.resume();
+    } else {
+      console.warn("AudioStreamer not initialized before connection");
+    }
+    
     client.disconnect();
     await client.connect(config);
     setConnected(true);

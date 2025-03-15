@@ -71,15 +71,58 @@ function ControlTray({
   const [muted, setMuted] = useState(false);
   const renderCanvasRef = useRef<HTMLCanvasElement>(null);
   const connectButtonRef = useRef<HTMLButtonElement>(null);
+  const [micPermissionError, setMicPermissionError] = useState<string | null>(null);
+  const [micStatus, setMicStatus] = useState<'inactive' | 'active' | 'error'>('inactive');
 
   const { client, connected, connect, disconnect, volume } =
     useLiveAPIContext();
+
+  // Function to request microphone permissions explicitly
+  const requestMicrophonePermission = async () => {
+    try {
+      await navigator.mediaDevices.getUserMedia({ audio: true });
+      setMicPermissionError(null);
+      return true;
+    } catch (error) {
+      console.error("Microphone permission error:", error);
+      setMicPermissionError("Microphone access denied. Please allow microphone access in your browser settings.");
+      return false;
+    }
+  };
+
+  // Modified connect function to ensure microphone permissions before connecting
+  const handleConnect = async () => {
+    if (!connected) {
+      const hasPermission = await requestMicrophonePermission();
+      if (hasPermission) {
+        connect();
+      }
+    } else {
+      disconnect();
+    }
+  };
+
+  // Listen for audio recorder errors
+  useEffect(() => {
+    const onError = (error: any) => {
+      console.error("AudioRecorder error:", error);
+      setMicStatus('error');
+      setMicPermissionError(`Microphone error: ${error.message || 'Unknown error'}`);
+    };
+
+    audioRecorder.on("error", onError);
+    
+    return () => {
+      audioRecorder.off("error", onError);
+    };
+  }, [audioRecorder]);
 
   useEffect(() => {
     if (!connected && connectButtonRef.current) {
       connectButtonRef.current.focus();
     }
   }, [connected]);
+  
   useEffect(() => {
     document.documentElement.style.setProperty(
       "--volume",
@@ -89,6 +132,12 @@ function ControlTray({
 
   useEffect(() => {
     const onData = (base64: string) => {
+      // If we're getting data from the microphone, microphone is working
+      if (micStatus !== 'active') {
+        setMicStatus('active');
+        setMicPermissionError(null);
+      }
+      
       client.sendRealtimeInput([
         {
           mimeType: "audio/pcm;rate=16000",
@@ -96,15 +145,47 @@ function ControlTray({
         },
       ]);
     };
-    if (connected && !muted && audioRecorder) {
-      audioRecorder.on("data", onData).on("volume", setInVolume).start();
-    } else {
-      audioRecorder.stop();
-    }
-    return () => {
-      audioRecorder.off("data", onData).off("volume", setInVolume);
+    
+    const onVolume = (vol: number) => {
+      // If we're getting volume data, microphone is working
+      if (vol > 0.01 && micStatus !== 'active') {
+        setMicStatus('active');
+        setMicPermissionError(null);
+      }
+      setInVolume(vol);
     };
-  }, [connected, client, muted, audioRecorder]);
+    
+    if (connected && !muted && audioRecorder) {
+      console.log("Starting audio recorder...");
+      setMicStatus('inactive'); // Reset status when starting
+      
+      audioRecorder
+        .on("data", onData)
+        .on("volume", onVolume)
+        .start()
+        .then(() => {
+          console.log("Audio recorder started successfully");
+          // Don't set active here - wait for actual data or volume to confirm it's working
+        })
+        .catch((error) => {
+          console.error("Failed to start audio recorder:", error);
+          setMicStatus('error');
+          setMicPermissionError(`Failed to access microphone: ${error.message}`);
+        });
+    } else {
+      console.log("Stopping audio recorder...");
+      audioRecorder.stop();
+      if (connected) {
+        setMicStatus(muted ? 'inactive' : 'error');
+      } else {
+        setMicStatus('inactive');
+      }
+    }
+    
+    return () => {
+      audioRecorder.off("data", onData).off("volume", onVolume);
+    };
+  }, [connected, client, muted, audioRecorder, micStatus]);
 
   useEffect(() => {
     if (videoRef.current) {
@@ -159,9 +240,29 @@ function ControlTray({
   return (
     <section className="control-tray">
       <canvas style={{ display: "none" }} ref={renderCanvasRef} />
+      <div className="status-messages">
+        {micPermissionError && (
+          <div className="status-message error">
+            {micPermissionError}
+          </div>
+        )}
+        {connected && !muted && micStatus === 'inactive' && !micPermissionError && (
+          <div className="status-message warning">
+            Waiting for microphone input... Check browser permissions if needed.
+          </div>
+        )}
+        {connected && !muted && micStatus === 'active' && (
+          <div className="status-message success">
+            Microphone active
+          </div>
+        )}
+      </div>
       <nav className={cn("actions-nav", { disabled: !connected })}>
         <button
-          className={cn("action-button mic-button")}
+          className={cn("action-button mic-button", { 
+            'error': micStatus === 'error' && !muted,
+            'active': micStatus === 'active' && !muted
+          })}
           onClick={() => setMuted(!muted)}
         >
           {!muted ? (
@@ -195,13 +296,13 @@ function ControlTray({
         )}
         {children}
       </nav>
-
+      
       <div className={cn("connection-container", { connected })}>
         <div className="connection-button-container">
           <button
             ref={connectButtonRef}
             className={cn("action-button connect-toggle", { connected })}
-            onClick={connected ? disconnect : connect}
+            onClick={handleConnect}
           >
             <span className="material-symbols-outlined filled">
               {connected ? "pause" : "play_arrow"}

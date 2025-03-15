@@ -44,6 +44,21 @@
       border: 1px solid var(--Blue-500);
     }
   }
+
+  &.mic-button {
+    &.error {
+      background-color: #ffdddd;
+      color: #ff0000;
+      border: 2px solid #ff0000;
+      animation: pulse-error 2s infinite;
+    }
+    
+    &.active {
+      background-color: #ddffdd;
+      color: #00aa00;
+      border: 2px solid #00aa00;
+    }
+  }
 }
 
 @property --volume {
@@ -113,6 +128,43 @@
   align-items: flex-start;
   gap: 8px;
   padding-bottom: 18px;
+  flex-direction: column;
+
+  .status-messages {
+    position: absolute;
+    bottom: 100%; 
+    left: 0;
+    right: 0;
+    display: flex;
+    justify-content: center;
+    margin-bottom: 8px;
+    
+    .status-message {
+      padding: 4px 12px;
+      border-radius: 12px;
+      font-size: 12px;
+      max-width: 280px;
+      text-align: center;
+      
+      &.error {
+        background-color: rgba(255, 0, 0, 0.1);
+        color: #ff0000;
+        border: 1px solid rgba(255, 0, 0, 0.3);
+      }
+      
+      &.warning {
+        background-color: rgba(255, 165, 0, 0.1);
+        color: #ff8c00;
+        border: 1px solid rgba(255, 165, 0, 0.3);
+      }
+      
+      &.success {
+        background-color: rgba(0, 128, 0, 0.1);
+        color: #008000;
+        border: 1px solid rgba(0, 128, 0, 0.3);
+      }
+    }
+  }
 
   .disabled .action-button,
   .action-button.disabled {
@@ -180,5 +232,68 @@
 
   100% {
     opacity: 0.9;
+  }
+}
+
+@keyframes pulse-error {
+  0% {
+    box-shadow: 0 0 0 0 rgba(255, 0, 0, 0.4);
+  }
+  70% {
+    box-shadow: 0 0 0 10px rgba(255, 0, 0, 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(255, 0, 0, 0);
+  }
+}
+
+/* Mobile optimization for the control tray */
+@media screen and (max-width: 768px) {
+  .control-tray {
+    /* Ensure the tray is sticky at the bottom and not covered by virtual keyboards */
+    position: fixed;
+    bottom: env(safe-area-inset-bottom, 0);
+    padding-bottom: env(safe-area-inset-bottom, 16px);
+    
+    /* Center everything */
+    left: 50%;
+    transform: translateX(-50%);
+    width: 100%;
+    max-width: 100vw;
+    
+    .actions-nav {
+      /* Make buttons easier to tap on mobile */
+      gap: 10px;
+      
+      .action-button {
+        /* Improve touch targets */
+        min-width: 48px;
+        min-height: 48px;
+        
+        /* Add active state feedback for touch */
+        &:active {
+          transform: scale(0.95);
+          opacity: 0.9;
+        }
+      }
+    }
+    
+    /* Improve status messages on mobile */
+    .status-messages {
+      bottom: 100%;
+      margin-bottom: 8px;
+      
+      .status-message {
+        font-size: 12px;
+        padding: 6px 10px;
+        max-width: 250px;
+      }
+    }
+  }
+  
+  /* Enlarge the mic button for better visibility on mobile */
+  .mic-button {
+    min-width: 52px !important;
+    min-height: 52px !important;
   }
 }

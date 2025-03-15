@@ -40,41 +40,48 @@ export class AudioStreamer {
     this.source = this.context.createBufferSource();
     this.gainNode.connect(this.context.destination);
     this.addPCM16 = this.addPCM16.bind(this);
+    
+    // Set initial gain
+    this.gainNode.gain.value = 1.0;
+    
+    console.log(`AudioStreamer created with context state: ${this.context.state}`);
   }
 
-  async addWorklet<T extends (d: any) => void>(
-    workletName: string,
+  async addWorklet<T>(
+    name: string,
     workletSrc: string,
-    handler: T,
-  ): Promise<this> {
-    let workletsRecord = registeredWorklets.get(this.context);
-    if (workletsRecord && workletsRecord[workletName]) {
-      // the worklet already exists on this context
-      // add the new handler to it
-      workletsRecord[workletName].handlers.push(handler);
-      return Promise.resolve(this);
-      //throw new Error(`Worklet ${workletName} already exists on context`);
+    handler: (ev: MessageEvent<T>) => void,
+  ) {
+    try {
+      console.log(`Adding worklet ${name} to AudioStreamer...`);
+      
+      // Ensure context is running
+      if (this.context.state !== "running") {
+        console.log(`Resuming context before adding worklet, current state: ${this.context.state}`);
+        await this.context.resume();
+      }
+      
+      const src = createWorketFromSrc(name, workletSrc);
+      await this.context.audioWorklet.addModule(src);
+      const node = new AudioWorkletNode(this.context, name);
+      const handlers = [handler];
+      const worklets = registeredWorklets.get(this.context) || {};
+      worklets[name] = { node, handlers };
+      registeredWorklets.set(this.context, worklets);
+      console.log(`Worklet ${name} added successfully`);
+      return node;
+    } catch (error) {
+      console.error(`Failed to add worklet ${name}:`, error);
+      throw error;
     }
-
-    if (!workletsRecord) {
-      registeredWorklets.set(this.context, {});
-      workletsRecord = registeredWorklets.get(this.context)!;
-    }
-
-    // create new record to fill in as becomes available
-    workletsRecord[workletName] = { handlers: [handler] };
-
-    const src = createWorketFromSrc(workletName, workletSrc);
-    await this.context.audioWorklet.addModule(src);
-    const worklet = new AudioWorkletNode(this.context, workletName);
-
-    //add the node into the map
-    workletsRecord[workletName].node = worklet;
-
-    return this;
   }
 
   addPCM16(chunk: Uint8Array) {
+    if (this.context.state !== "running") {
+      console.log(`Audio context not running (state: ${this.context.state}), attempting to resume...`);
+      this.context.resume().catch(err => console.error("Failed to resume context:", err));
+    }
+    
     const float32Array = new Float32Array(chunk.length / 2);
     const dataView = new DataView(chunk.buffer);
 
@@ -84,9 +91,6 @@ export class AudioStreamer {
         float32Array[i] = int16 / 32768;
       } catch (e) {
         console.error(e);
-        // console.log(
-        //   `dataView.length: ${dataView.byteLength},  i * 2: ${i * 2}`,
-        // );
       }
     }
 
@@ -104,6 +108,7 @@ export class AudioStreamer {
     }
 
     if (!this.isPlaying) {
+      console.log("Starting audio playback chain...");
       this.isPlaying = true;
       // Initialize scheduledTime only when we start playing
       this.scheduledTime = this.context.currentTime + this.initialBufferTime;
@@ -233,12 +238,31 @@ export class AudioStreamer {
   }
 
   async resume() {
+    console.log(`Resuming AudioStreamer, context state: ${this.context.state}`);
+    
     if (this.context.state === "suspended") {
-      await this.context.resume();
+      try {
+        console.log("Resuming suspended audio context...");
+        await this.context.resume();
+        console.log(`Context resumed, new state: ${this.context.state}`);
+      } catch (error) {
+        console.error("Failed to resume audio context:", error);
+      }
     }
+    
+    // Restore gain to normal
+    this.gainNode.gain.setValueAtTime(1, this.context.currentTime);
+    
+    // Reset stream state
     this.isStreamComplete = false;
     this.scheduledTime = this.context.currentTime + this.initialBufferTime;
-    this.gainNode.gain.setValueAtTime(1, this.context.currentTime);
+    
+    // Restart playback if we have buffered audio
+    if (this.audioQueue.length > 0 && !this.isPlaying) {
+      console.log("Restarting playback of buffered audio");
+      this.isPlaying = true;
+      this.scheduleNextBuffer();
+    }
   }
 
   complete() {
