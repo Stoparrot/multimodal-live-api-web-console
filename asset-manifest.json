@@ -1,15 +1,15 @@
 {
   "files": {
-    "main.css": "/multimodal-live-api-web-console/static/css/main.8cfba896.css",
-    "main.js": "/multimodal-live-api-web-console/static/js/main.2c5e3a5f.js",
+    "main.css": "/multimodal-live-api-web-console/static/css/main.44c946aa.css",
+    "main.js": "/multimodal-live-api-web-console/static/js/main.7b1bac82.js",
     "static/js/453.030a6035.chunk.js": "/multimodal-live-api-web-console/static/js/453.030a6035.chunk.js",
     "index.html": "/multimodal-live-api-web-console/index.html",
-    "main.8cfba896.css.map": "/multimodal-live-api-web-console/static/css/main.8cfba896.css.map",
-    "main.2c5e3a5f.js.map": "/multimodal-live-api-web-console/static/js/main.2c5e3a5f.js.map",
+    "main.44c946aa.css.map": "/multimodal-live-api-web-console/static/css/main.44c946aa.css.map",
+    "main.7b1bac82.js.map": "/multimodal-live-api-web-console/static/js/main.7b1bac82.js.map",
     "453.030a6035.chunk.js.map": "/multimodal-live-api-web-console/static/js/453.030a6035.chunk.js.map"
   },
   "entrypoints": [
-    "static/css/main.8cfba896.css",
-    "static/js/main.2c5e3a5f.js"
+    "static/css/main.44c946aa.css",
+    "static/js/main.7b1bac82.js"
   ]
 }
